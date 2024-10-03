@@ -27,6 +27,10 @@ remote_path = ''
 if args.SSH:
     shell = ssh(user='', host=host, port=22, password='')
     shell.set_working_directory(symlink=True)
+    files_to_download = []
+    if args.DOWNLOAD:
+        for filename in files_to_download:
+            shell.download(filename)
 
 def start_local(argv=[], *a, **kw):
     '''Execute the target binary locally'''

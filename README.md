@@ -1,134 +1,99 @@
 # Pwn Template
 
-My template for pwn CTFs.
+My template for pwnable CTFs.
 
+**main.py:**
 ```python
+from typing_extensions import ParamSpec
+from typing import List
 from pwn import *
 import os
 
-# Pwnlib settings
-os.environ["PWNLIB_COLOR"] = "always"
+from exploit import exploit
 
-# Set up pwntools for correct arch, library and 
-exe = context.binary = ELF('')
-libc = ELF('')
-ld = ELF('')
+CWD: str = "../run/"
+EXE: ELF = ELF(CWD + "challenge")
+LIBC: ELF = ELF(CWD + "libc.so.6")
 
-# Connection details for challenge host & port
-host = ''
-port = 9000
+HOST: str = "pwn.ctf.cyber"
+PORT: int = 1234
 
-# Define timeout interval for I/O operations
-TIMEOUT = 1
+GDBSCRIPT: str = """
+handle SIGALRM ignore
+continue
+""".format(**locals())
 
-# Connect to remote SSH server if there's one
-shell = None
-remote_path = ''
-if args.SSH:
-    shell = ssh(user='', host=host, port=22, password='')
-    shell.set_working_directory(symlink=True)
-    files_to_download = []
-    if args.DOWNLOAD:
-        for filename in files_to_download:
-            shell.download(filename)
+LOG_EVERY: int = 100
 
-def start_local(argv=[], *a, **kw):
-    '''Execute the target binary locally'''
+P = ParamSpec('P')
+
+def start_local(argv: List[str] = [], *a: P.args, **kw: P.kwargs) -> tube:
+    """Execute the target binary locally."""
     if args.GDB:
-        return gdb.debug([exe.path] + argv, gdbscript=gdbscript, *a, **kw)
+        return gdb.debug([EXE.path] + argv, *a, gdbscript=GDBSCRIPT, api=True, cwd=CWD, **kw)
     else:
-        return process([exe.path] + argv, *a, **kw)
+        return process([EXE.path] + argv, *a, cwd=CWD, **kw)
 
-def start_ssh(argv=[], *a, **kw):
-    '''Execute the target binary on the remote host'''
-    if args.GDB:
-        return gdb.debug([remote_path] + argv, gdbscript=gdbscript, ssh=shell, *a, **kw)
-    else:
-        return shell.process([remote_path] + argv, *a, **kw)
 
-def start_remote():
-    '''Connect to the process on the remote host'''
-    return remote(host, port)
+def start_remote() -> tube:
+    """Connect to the process on the remote host."""
+    return remote(HOST, PORT)
     
-def start(argv=[], *a, **kw):
-    '''Start the exploit against the target.'''
+    
+def start(argv: List[str] = [], *a: P.args, **kw: P.kwargs) -> tube:
+    """Start the exploit against the target."""
     if args.LOCAL:
         return start_local(argv, *a, **kw)
-    elif args.SSH:
-        return start_ssh(argv, *a, **kw)
     else:
         return start_remote()
 
-# Gdbscript for debugging
-gdbscript = '''
-tbreak *0x{exe.entry:x}
-continue
-'''.format(**locals())
 
-# Choose whether to use aslr or not
-context.aslr = True
-
-# Terminal
-# context.terminal = context.terminal = ["tmux","new-window"]
-context.terminal = ["tmux", "splitw", "-h"]
-
-#===========================================================
-#                    EXPLOIT GOES HERE
-#===========================================================
-
-def exploit(io):
-    ...
-    
-def run_once():
-    ''' Simply, run the exploit once '''
-    try:
-        io = start()
-        exploit(io)
-        io.interactive()
-    except Exception as e:
-        log.failure(term.text.bold_red(str(e)))
-    finally:
-        io.close()
-
-def _bf_run_once():
-    ''' Run the exploit once, return True if successful, False otherwise '''
-    try:
-        exploited = True
-        io = start()
-        exploit(io)
-        io.sendline(b'cat /home/*/flag*')
-        io.sendline(b'echo AAAAAAA')
-        flag = io.recvuntil(b'AAAAAAA', timeout=TIMEOUT)[:-8].decode()
-        if not flag: raise Exception('Failed to retrieve flag')
-        success(term.text.bold_italic_green(flag))
-        io.interactive()
-    except:
-        exploited = False
-    finally:
-        io.close()
-        return exploited
-
-def brute_force():
-    ''' Brute force the exploit until successful, logging every ITERS attempts '''
-    ITERS, counter = 100, 0
+def brute_force() -> None:
+    """Brute force the exploit until successful, logging every LOG_EVERY attempts."""
+    counter = 0
     while True:
-        for _ in range(ITERS):
-            if _bf_run_once():
+        for _ in range(LOG_EVERY):
+            if exploit(start, EXE, LIBC):
                 break
         else:
-            counter += 1
-            info(term.text.bold_yellow('Attempt: {}'.format(counter * ITERS)))
+            counter += LOG_EVERY
+            log.info(term.text.bold_yellow("Attempt: {}".format(counter)))
             continue
         break
+
+
+def main() -> None:
+    """Main function"""
+    # Setup context
+    context.binary = EXE
+    context.terminal = ["tmux", "splitw", "-h"]
+    os.environ["PWNLIB_COLOR"] = "always"
     
-def main():
-    ''' Main function '''
+    # Execute exploit
     if args.SPAM:
         brute_force()
     else:
-        run_once()
+        exploit(start, EXE, LIBC)
+
 
 if __name__ == "__main__":
     main()
+```
+**exploit.py:**
+```python
+from typing import Callable
+from pwn import *
 
+
+def _exploit(io: tube, exe: ELF, libc: ELF) -> bool:
+    """Must not except."""
+    pass
+
+
+def exploit(start: Callable[..., tube], exe: ELF, libc: ELF) -> bool:
+    """Run the exploit once, and return a status weather the exploit worked."""
+    io = start() # <- change start arguments
+    status = _exploit(io, exe, libc)
+    io.close()
+    return status
 ```
